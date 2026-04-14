@@ -1,11 +1,17 @@
 import re
+import os
 import threading
 import numpy as np
 from typing import List, Union
+from pathlib import Path
 from sentence_transformers import SentenceTransformer
 
 _model = None
 _model_lock = threading.Lock()
+
+# Use persistent volume if available (Railway, Docker), otherwise local cache
+MODEL_CACHE_DIR = os.getenv("TRANSFORMERS_CACHE", "/app/models")
+Path(MODEL_CACHE_DIR).mkdir(parents=True, exist_ok=True)
 
 
 def clean_text(text: str) -> str:
@@ -23,7 +29,11 @@ def get_model(name: str = "sentence-transformers/paraphrase-multilingual-MiniLM-
     if _model is None:
         with _model_lock:
             if _model is None:
-                _model = SentenceTransformer(name)
+                _model = SentenceTransformer(
+                    name,
+                    cache_folder=MODEL_CACHE_DIR,
+                    device="cpu"
+                )
     return _model
 
 def embed(

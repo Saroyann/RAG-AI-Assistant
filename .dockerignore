@@ -21,3 +21,17 @@ venv/
 env/
 node_modules/
 .github/
+*.md
+data/
+tests/
+.pytest_cache
+.mypy_cache
+.ruff_cache
+*.tar.gz
+*.zip
+.*.swp
+*~
+.project
+.pydevproject
+.settings/
+

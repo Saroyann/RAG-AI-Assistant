@@ -1,0 +1,19 @@
+[build]
+builder = "dockerfile"
+buildCommand = "docker build -t rag-assistant ."
+
+[deploy]
+restartPolicyMaxRetries = 3
+restartPolicyType = "ON_FAILURE"
+
+[[volumes]]
+mountPath = "/app/models"
+size = "5GB"
+
+[[volumes]]
+mountPath = "/app/data"  
+size = "2GB"
+
+[env]
+TRANSFORMERS_CACHE = "/app/models"
+PYTHONUNBUFFERED = "1"
