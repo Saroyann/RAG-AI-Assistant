@@ -6,14 +6,8 @@ buildCommand = "docker build -t rag-assistant ."
 restartPolicyMaxRetries = 3
 restartPolicyType = "ON_FAILURE"
 
-[[volumes]]
-mountPath = "/app/models"
-size = "5GB"
-
-[[volumes]]
-mountPath = "/app/data"  
-size = "2GB"
+# Note: No volumes needed! Using HuggingFace Inference API
+# Models download on-demand from HF, no local storage required
 
 [env]
-TRANSFORMERS_CACHE = "/app/models"
 PYTHONUNBUFFERED = "1"
