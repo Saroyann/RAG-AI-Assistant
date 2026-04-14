@@ -28,15 +28,15 @@ RUN pip install --no-cache-dir -r requirements.txt && \
     find /usr/local/lib/python3.9 -name "*.dist-info" -type d -exec rm -rf {} + 2>/dev/null || true && \
     find /usr/local/lib/python3.9 -name "*.egg-info" -type d -exec rm -rf {} + 2>/dev/null || true
 
+# Create data directories (will be populated by volumes or manual upload)
+RUN mkdir -p /app/data /app/models /app/chat_history
+
 # Set environment
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     TRANSFORMERS_CACHE=/app/models \
     HF_HOME=/app/models \
     TORCH_HOME=/app/models
-
-# Create model cache directory
-RUN mkdir -p /app/models /app/data
 
 EXPOSE 8000
 

@@ -17,12 +17,35 @@ from config import (
 INDEX_PATH = "faiss.index"
 META_PATH = "faiss_meta.json"
 
-if os.path.exists(INDEX_PATH) and os.path.exists(META_PATH):
-    _vs = VectorStore.load(INDEX_PATH, META_PATH)
-else:
-    docs = load_documents(DOCUMENT_PATH)
-    _vs = VectorStore(docs)
-    _vs.save(INDEX_PATH, META_PATH)
+# Lazy initialization - only load when needed
+_vs = None
+_vs_initialized = False
+
+
+def _get_vectorstore():
+    """Lazy load vector store on first use"""
+    global _vs, _vs_initialized
+    
+    if _vs_initialized:
+        return _vs
+    
+    try:
+        if os.path.exists(INDEX_PATH) and os.path.exists(META_PATH):
+            _vs = VectorStore.load(INDEX_PATH, META_PATH)
+        elif os.path.exists(DOCUMENT_PATH):
+            docs = load_documents(DOCUMENT_PATH)
+            _vs = VectorStore(docs)
+            _vs.save(INDEX_PATH, META_PATH)
+        else:
+            print(f"⚠️  Warning: Data file not found at {DOCUMENT_PATH}. RAG will not work until data is provided.")
+            _vs = None
+    except Exception as e:
+        print(f"⚠️  Warning: Failed to load vector store: {e}")
+        _vs = None
+    
+    _vs_initialized = True
+    return _vs
+
 
 
 def _build_context(results):
@@ -63,7 +86,12 @@ def _build_context(results):
 
 def rag_answer(query: str, session_id: str = None):
     """Answer learning queries using RAG"""
-    results = _vs.search(query, k=TOP_K, min_score=RETRIEVE_MIN_SCORE)
+    vs = _get_vectorstore()
+    
+    if vs is None:
+        return "Maaf, basis data pembelajaran belum tersedia. Silakan hubungi administrator untuk setup data."
+    
+    results = vs.search(query, k=TOP_K, min_score=RETRIEVE_MIN_SCORE)
     context = _build_context(results)
     
     # Add conversation history if session_id provided

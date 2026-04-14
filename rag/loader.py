@@ -36,31 +36,45 @@ def load_jsonl_documents(DOCUMENT_PATH: str) -> List[Dict]:
     - chunk_id: global unik
     - metadata: dict dengan name, difficulty, technologies, dll
     """
+    if not os.path.exists(DOCUMENT_PATH):
+        print(f"⚠️  Warning: JSONL file not found at {DOCUMENT_PATH}")
+        return []
+    
     docs = []
     global_chunk_id = 0  
 
-    with open(DOCUMENT_PATH, "r", encoding="utf-8") as f:
-        for line in f:
-            item = json.loads(line)
-            
-            # Chunk text dari combined_text
-            chunks = chunk_text(item["combined_text"])
+    try:
+        with open(DOCUMENT_PATH, "r", encoding="utf-8") as f:
+            for line in f:
+                if not line.strip():
+                    continue
+                try:
+                    item = json.loads(line)
+                    
+                    # Chunk text dari combined_text
+                    chunks = chunk_text(item["combined_text"])
 
-            # Build dokumen dengan struktur konsisten
-            for c in chunks:
-                docs.append({
-                    "text": c["text"],
-                    "page": None,  # JSONL tidak punya page number
-                    "chunk_id": global_chunk_id,
-                    "metadata": {
-                        "name": item.get("name", "Unknown"),
-                        "summary": item.get("summary", ""),
-                        "description": item.get("description", ""),
-                        "difficulty": item.get("course_difficulty", "N/A"),
-                        "technologies": item.get("technologies", []),
-                    }
-                })
-                global_chunk_id += 1
+                    # Build dokumen dengan struktur konsisten
+                    for c in chunks:
+                        docs.append({
+                            "text": c["text"],
+                            "page": None,  # JSONL tidak punya page number
+                            "chunk_id": global_chunk_id,
+                            "metadata": {
+                                "name": item.get("name", "Unknown"),
+                                "summary": item.get("summary", ""),
+                                "description": item.get("description", ""),
+                                "difficulty": item.get("course_difficulty", "N/A"),
+                                "technologies": item.get("technologies", []),
+                            }
+                        })
+                        global_chunk_id += 1
+                except json.JSONDecodeError as e:
+                    print(f"⚠️  Skipping invalid JSON line: {e}")
+                    continue
+    except Exception as e:
+        print(f"⚠️  Error reading JSONL file: {e}")
+        return []
 
     return docs
 
