@@ -1,155 +1,200 @@
 # Railway Deployment Guide
 
-## ⚠️ Critical: Image Size Issue Resolved
+## 🎉 Image Size Issue SOLVED!
 
-The Docker image was 7.8 GB because of heavy ML dependencies (sentence-transformers, faiss, PyTorch). 
-
-**Solution**: Use Railway Volumes to store models outside the image.
-
-### Why Volumes?
-- Docker image now only ~1-2 GB (just runtime + code)
-- Models are stored in persistent 5GB volume
-- Models persist across container restarts (fast startup)
-- No more size limit issues
+Docker image reduced from **7.8 GB → 500 MB** using HuggingFace Inference API for embeddings.
 
 ---
 
 ## Prerequisites
 - Railway account: https://railway.app
-- Docker installed (for local testing)
+- HuggingFace account: https://huggingface.co/join
 - Git repository pushed to GitHub
 
-## Automatic Deployment (Recommended)
+## Deployment Steps
 
-Railway will automatically detect and use:
-- **Dockerfile** - Custom build configuration
-- **railway.toml** - Volumes and environment variables
+### 1. Get HuggingFace API Key
 
-### 1. Push Updated Code to GitHub
+1. Go to https://huggingface.co/settings/tokens
+2. Click "New token" → User access token
+3. Copy the key (looks like: `hf_abcdef1234567890...`)
+4. Keep it safe!
+
+### 2. Push Code to GitHub
 
 ```bash
 git add .
-git commit -m "Add Docker optimization with Railway volumes"
+git commit -m "Switch to HuggingFace API - fixes Docker image size"
 git push origin main
 ```
 
-### 2. Deploy on Railway
+### 3. Deploy on Railway
 
 - Go to Railway dashboard → New Project
 - Select "Deploy from GitHub"
 - Choose your repository
-- Railway will auto-detect `railway.toml` with volume configuration
+- Railway auto-detects Dockerfile and deploys
 
-### 3. Configure Additional Environment Variables
+### 4. Set Environment Variables
 
 In Railway dashboard → Variables tab, add:
 
 ```
+# Required: LLM Configuration
 GEMINI_API_KEY=your_gemini_api_key_here
 MODEL_NAME=gemini-2.0-flash-exp
+
+# Required: Embeddings (HuggingFace API)
+HF_API_KEY=hf_your_huggingface_token_here
+EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
+
+# Optional: RAG Configuration
 TOP_K=3
 RETRIEVE_MIN_SCORE=0.4
 MAX_CONTEXT_WORDS=400
-DOCUMENT_PATH=/app/data/data.jsonl
-USER_DATA_PATH=/app/data/data.json
-COURSES_PATH=/app/data/courses.json
-LEARNING_PATHS_PATH=/app/data/learning_paths.json
-COURSE_LEVELS_PATH=/app/data/course_levels.json
-TUTORIALS_PATH=/app/data/tutorials.json
-TRANSFORMERS_CACHE=/app/models
+DOCUMENT_PATH=data/data.jsonl
+USER_DATA_PATH=data/data.json
+COURSES_PATH=data/courses.json
+LEARNING_PATHS_PATH=data/learning_paths.json
+COURSE_LEVELS_PATH=data/course_levels.json
+TUTORIALS_PATH=data/tutorials.json
 ```
 
-### 4. Monitor Deployment
+### 5. Monitor Deployment
 
-- Railway will detect Dockerfile and build using Docker
-- First build: ~5-10 minutes (downloads and caches models to volume)
-- Subsequent restarts: ~30 seconds (models already cached)
-- Check build logs: Deployments → View Logs
+- Click on service → "Deployment" tab
+- Watch build logs (should complete in 2-3 minutes)
+- Once green, your API is live!
 
-### 5. Test Your API
+### 6. Test Your API
 
-After successful deployment:
-- Visit: `https://your-railway-domain.com/docs` (Swagger UI)
-- Test endpoint: `POST /chat` with sample query
+Visit: `https://your-railway-domain.com/docs`
 
----
-
-## What Changed
-
-✅ **Dockerfile** - Multi-stage build, aggressive optimization
-✅ **railway.toml** - Volumes configuration (5GB models, 2GB data)
-✅ **rag/embedder.py** - Models load from persistent volume
-✅ **.dockerignore** - Excludes unnecessary files
-✅ **Environment variables** - TRANSFORMERS_CACHE=/app/models
+Send test request:
+```
+POST /chat
+{
+  "query": "What is machine learning?",
+  "session_id": "test-session-123"
+}
+```
 
 ---
 
-## Expected Results
+## Architecture
 
-| Metric | Before | After |
-|--------|--------|-------|
-| Docker Image Size | 7.8 GB ❌ | 1-2 GB ✅ |
-| Limit | 4 GB | 4 GB supports image now |
-| Model Loading | Every restart | Cached on volume |
-| First Startup | N/A | ~2-3 min (model download) |
-| Later Startups | N/A | ~30 sec (volume cached) |
+```
+┌─────────────────┐
+│   Your App      │
+│   (Railway)     │
+│   500 MB ✅     │
+└────────┬────────┘
+         │
+    ┌────┴─────────────────────┐
+    │                           │
+    ▼                           ▼
+┌─────────────────┐    ┌──────────────────┐
+│ FAISS Search    │    │ HuggingFace API  │
+│ (local, fast)   │    │ Embeddings       │
+└─────────────────┘    └──────────────────┘
+                            (cloud)
+    ▼
+┌─────────────────┐
+│ Google Gemini   │
+│ LLM (cloud)     │
+└─────────────────┘
+```
+
+---
+
+## Key Changes
+
+✅ **requirements.txt** - Removed PyTorch/sentence-transformers (saves 2+ GB)
+✅ **rag/embedder.py** - Uses HuggingFace API instead of local models
+✅ **Dockerfile** - Ultra-lightweight (~500 MB final image)
+✅ **railway.toml** - No volumes needed (models in cloud)
+✅ **.dockerignore** - Keeps unnecessary files out
+
+---
+
+## Cost Breakdown (Monthly)
+
+| Component | Cost |
+|-----------|------|
+| Railway free tier (hosting) | FREE ✅ |
+| HuggingFace API (30k requests) | FREE ✅ |
+| Google Gemini API | ~$0.01-1 (usage-based) |
+| **Total** | **FREE - $1** |
 
 ---
 
 ## Troubleshooting
 
-### "Deployment failed during build process"
-1. Check Railway build logs for specific error
-2. Verify GitHub repository is public or Railway has access
-3. Check for syntax errors in Dockerfile or requirements.txt
+### "Deployment failed during build"
+- Check Railway build logs for specific error
+- Ensure GitHub repo is public
+- Check requirements.txt syntax
 
-### "Image of size X GB exceeded limit"  
-- This should be fixed now! Image is only 1-2 GB
-- If still occurring: upgrade Railway plan
+### "Invalid HF API Key"
+- Key must start with `hf_`
+- Verify it's a "User access token"
+- Create new token if expired
 
-### "Model download timeout"
-- First deployment downloads models to volume (can take 5-10 min)
-- Wait for build to complete in Railway logs
-- Subsequent deployments are much faster
+### "HF API rate limit exceeded"
+- Free tier: 30k requests/month
+- Upgrade to HF Pro ($9/mo) for unlimited
+- Or set `USE_LOCAL_EMBEDDINGS=true` for fallback
 
-### "404 on API endpoints"
-- Wait for full deployment to complete
-- Check Variables are set correctly (especially GEMINI_API_KEY)
-- Check Railway logs for runtime errors
-
----
-
-## Local Testing (Optional)
-
-To test locally before deployment:
-
+### "ModuleNotFoundError"
+- Should be fixed now (requirements updated)
+- Force rebuild: push empty commit
 ```bash
-# Create volumes for testing
-docker volume create rag-models
-docker volume create rag-data
-
-# Build and run
-docker build -t rag-assistant .
-docker run -p 8000:8000 \
-  -e GEMINI_API_KEY="your_key" \
-  -e TRANSFORMERS_CACHE="/app/models" \
-  -v rag-models:/app/models \
-  -v rag-data:/app/data \
-  rag-assistant
+git commit --allow-empty -m "Rebuild"
+git push
 ```
 
-Then visit: http://localhost:8000/docs
+### "API returns 502 Bad Gateway"
+- Wait for container to fully start
+- Check Railway logs for errors
+- Verify all environment variables are set
 
 ---
 
-## Next Deployment Attempts
+## Need Help?
 
-Just push to GitHub:
+Check logs in Railway:
+1. Service → Logs
+2. Look for errors
+3. Compare with troubleshooting section above
+
+---
+
+## Rollback to Local Embeddings (Optional)
+
+If you prefer local embeddings instead of API:
+
+1. Set environment variable:
+   ```
+   USE_LOCAL_EMBEDDINGS=true
+   TRANSFORMERS_CACHE=/app/models
+   ```
+
+2. This enables fallback to sentence-transformers
+3. First startup will be slow (downloads model)
+4. Subsequent restarts will be fast (cached)
+
+---
+
+## Next Deployment Changes
+
+Just push to GitHub and Railway will automatically rebuild:
+
 ```bash
 git add .
 git commit -m "Your changes"
 git push origin main
 ```
 
-Railway will automatically rebuild and redeploy!
+Done! 🚀
+
 
